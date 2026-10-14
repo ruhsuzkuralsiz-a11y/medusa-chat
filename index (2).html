@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Medusa Chat</title>
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#313338;color:#f2f3f5;font-family:Arial,sans-serif}
+button,input{font:inherit}
+button{cursor:pointer}
+
+/* Giriş Ekranı Stilleri */
+#authModal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:999}
+.auth-box{background:#313338;padding:30px;border-radius:10px;width:90%;max-width:400px;box-shadow:0 8px 24px rgba(0,0,0,0.5);display:flex;flex-direction:column;gap:15px}
+.auth-box h2{margin:0 0 10px;color:white;text-align:center}
+.auth-box input{background:#1e1f22;border:1px solid #222327;border-radius:5px;padding:12px;color:white;outline:none;font-size:14px}
+.auth-box button{background:#5865f2;color:white;border:0;border-radius:5px;padding:12px;font-weight:bold;font-size:15px}
+.auth-box button:hover{background:#4752c4}
+
+.app{display:flex;height:100vh;height:100dvh;overflow:hidden}
+.servers{width:66px;flex-shrink:0;background:#1e1f22;padding:10px 8px;display:flex;align-items:center;flex-direction:column;gap:10px;overflow:auto}
+.server{width:46px;height:46px;flex-shrink:0;border:0;border-radius:50%;background:#313338;color:#fff;font-size:20px;transition:.15s}
+.server:hover,.server.active{background:#5865f2;border-radius:15px}
+.add-server{color:#23a559;font-size:25px}
+.channels{width:145px;flex-shrink:0;background:#2b2d31;padding:14px 9px;overflow:auto}
+.server-title{font-size:14px;font-weight:bold;padding:8px 4px 18px;overflow-wrap:anywhere}
+.section-title{font-size:11px;color:#949ba4;font-weight:bold;margin:12px 4px 7px}
+.channel{width:100%;display:block;text-align:left;padding:10px 7px;border:0;border-radius:5px;background:transparent;color:#b5bac1;margin-bottom:3px;font-size:13px;overflow-wrap:anywhere}
+.channel:hover{background:#35373c;color:white}
+.channel.active{background:#404249;color:white}
+.add-channel{width:100%;padding:8px;border:0;background:transparent;color:#949ba4;text-align:left;font-size:12px}
+.add-channel:hover{color:white}
+.chat{flex:1;min-width:0;display:flex;flex-direction:column;background:#313338}
+.chat-header{height:52px;flex-shrink:0;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid #26272b;font-weight:bold;gap:8px;overflow:hidden}
+.header-hash{color:#949ba4;font-size:22px}
+.menu-button{display:none;margin-left:auto;background:transparent;color:white;border:0;font-size:20px}
+.messages{flex:1;min-height:0;overflow-y:auto;padding:18px 12px}
+.welcome{margin-top:auto;padding:10px 0 22px}
+.welcome h2{font-size:21px;margin-bottom:7px}
+.welcome p{color:#b5bac1;font-size:13px}
+.message{display:flex;gap:9px;margin:0 0 20px;overflow-wrap:anywhere}
+.avatar{width:35px;height:35px;flex-shrink:0;border-radius:50%;background:#5865f2;display:flex;align-items:center;justify-content:center;font-weight:bold;overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.message-content{min-width:0;flex:1}
+.message-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px}
+.username{font-weight:bold;font-size:14px}
+.time{font-size:10px;color:#949ba4}
+.message-text{font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.input-area{padding:10px 12px 15px;flex-shrink:0}
+.input-row{display:flex;align-items:center;gap:8px;background:#383a40;border-radius:8px;padding:8px}
+#messageInput{flex:1;min-width:0;background:transparent;border:0;outline:none;color:white;padding:5px;font-size:14px}
+#messageInput::placeholder{color:#949ba4}
+.send-button{width:38px;height:36px;border:0;border-radius:6px;background:#5865f2;color:white;font-size:19px}
+.send-button:hover{background:#4752c4}
+@media(max-width:480px){
+.servers{width:55px;padding:9px 5px}
+.server{width:42px;height:42px}
+.channels{width:112px;padding:12px 6px}
+.channel{font-size:12px}
+.chat-header{padding:0 8px;font-size:13px}
+.messages{padding:14px 8px}
+.input-area{padding:8px}
+.menu-button{display:block}
+}
+</style>
+</head>
+
+<body>
+
+<!-- Giriş ve Kayıt Ekranı Penceresi -->
+<div id="authModal">
+  <div class="auth-box">
+    <h2>Medusa Chat'e Giriş Yap</h2>
+    <input type="text" id="usernameInput" placeholder="Kullanıcı adını yaz..." autocomplete="off">
+    <input type="text" id="avatarInput" placeholder="Profil resmi URL'si (İsteğe bağlı)" autocomplete="off">
+    <button id="loginBtn">Sohbete Başla</button>
+  </div>
+</div>
+
+<div class="app">
+
+  <aside class="servers" id="servers"></aside>
+
+  <aside class="channels">
+    <div class="server-title" id="serverTitle">Medusa Sunucusu</div>
+    <div class="section-title">METİN KANALLARI</div>
+    <div id="channelList"></div>
+    <button class="add-channel" id="addChannel">＋ Kanal ekle</button>
+    <div class="section-title">SES KANALLARI</div>
+    <button class="channel" id="voiceChannel">🔊 Genel ses</button>
+  </aside>
+
+  <main class="chat">
+    <header class="chat-header">
+      <span class="header-hash">#</span>
+      <span id="headerName">genel</span>
+      <button class="menu-button" id="mobileMenu" aria-label="Menü">☰</button>
+    </header>
+
+    <section class="messages" id="messages">
+      <div class="welcome">
+        <h2>Medusa Chat'e hoş geldin! 💜</h2>
+        <p>Burası sohbetinin başlangıcı. Bir mesaj yaz ve sohbete başla.</p>
+      </div>
+    </section>
+
+    <footer class="input-area">
+      <form class="input-row" id="chatForm">
+        <input id="messageInput" placeholder="# genel kanalına mesaj gönder" autocomplete="off" maxlength="2000">
+        <button class="send-button" type="submit" aria-label="Mesaj gönder">➤</button>
+      </form>
+    </footer>
+  </main>
+
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
+  import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCx2hFQwGwdClOR23SQ4MnFPSwyP8centY",
+    authDomain: "medusa-chat-424f9.firebaseapp.com",
+    projectId: "medusa-chat-424f9",
+    storageBucket: "medusa-chat-424f9.firebasestorage.app",
+    messagingSenderId: "474250806691",
+    appId: "1:474250806691:web:f26d854afdaf3e1f444616",
+    measurementId: "G-BRL12NGTL1"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  let currentUser = {
+    name: localStorage.getItem("medusa_username") || "",
+    avatar: localStorage.getItem("medusa_avatar") || ""
+  };
+
+  if(currentUser.name){
+    document.getElementById("authModal").style.display = "none";
+  }
+
+  document.getElementById("loginBtn").addEventListener("click", () => {
+    const nameVal = document.getElementById("usernameInput").value.trim();
+    const avatarVal = document.getElementById("avatarInput").value.trim();
+
+    if(!nameVal){
+      alert("Lütfen bir kullanıcı adı yaz!");
+      return;
+    }
+
+    currentUser.name = nameVal;
+    currentUser.avatar = avatarVal;
+
+    localStorage.setItem("medusa_username", nameVal);
+    if(avatarVal) localStorage.setItem("medusa_avatar", avatarVal);
+
+    document.getElementById("authModal").style.display = "none";
+  });
+
+  const serverData = [
+    {id:1,name:"Medusa Sunucusu",icon:"M",channels:["genel","sohbet","oyun"]},
+    {id:2,name:"Oyun Dünyası",icon:"🎮",channels:["genel","oyun-sohbeti"]},
+    {id:3,name:"Müzik Odası",icon:"🎵",channels:["müzik","paylaşımlar"]}
+  ];
+
+  let activeServerId = 1;
+  let activeChannel = "genel";
+  let nextServerId = 4;
+  const messageHistory = {};
+  
+  const serverContainer = document.getElementById("servers");
+  const channelContainer = document.getElementById("channelList");
+  const serverTitle = document.getElementById("serverTitle");
+  const headerName = document.getElementById("headerName");
+  const messages = document.getElementById("messages");
+  const input = document.getElementById("messageInput");
+
+  function getServer(){
+    return serverData.find(s => s.id === activeServerId);
+  }
+
+  function getKey(){
+    return "server_" + activeServerId + "_" + activeChannel;
+  }
+
+  function renderServers(){
+    serverContainer.replaceChildren();
+
+    serverData.forEach(server => {
+      const button = document.createElement("button");
+      button.className = "server" + (server.id === activeServerId ? " active" : "");
+      button.textContent = server.icon;
+      button.title = server.name;
+      button.setAttribute("aria-label",server.name);
+      button.addEventListener("click",() => {
+        activeServerId = server.id;
+        activeChannel = server.channels[0];
+        renderAll();
+        listenMessages();
+      });
+      serverContainer.appendChild(button);
+    });
+
+    const add = document.createElement("button");
+    add.className = "server add-server";
+    add.textContent = "+";
+    add.title = "Sunucu ekle";
+    add.addEventListener("click",addServer);
+    serverContainer.appendChild(add);
+  }
+
+  function renderChannels(){
+    const server = getServer();
+    serverTitle.textContent = server.name;
+    channelContainer.replaceChildren();
+
+    server.channels.forEach(name => {
+      const button = document.createElement("button");
+      button.className = "channel" + (name === activeChannel ? " active" : "");
+      button.textContent = "# " + name;
+      button.addEventListener("click",() => {
+        activeChannel = name;
+        renderAll();
+        listenMessages();
+      });
+      channelContainer.appendChild(button);
+    });
+
+    headerName.textContent = activeChannel;
+    input.placeholder = "# " + activeChannel + " kanalına mesaj gönder";
+  }
+
+  function renderMessages(){
+    messages.replaceChildren();
+    const list = messageHistory[getKey()] || [];
+
+    if(list.length === 0){
+      const welcome = document.createElement("div");
+      welcome.className = "welcome";
+      const title = document.createElement("h2");
+      title.textContent = "# " + activeChannel;
+      const p = document.createElement("p");
+      p.textContent = "Bu kanalın başlangıcı. İlk mesajı sen gönder!";
+      welcome.append(title,p);
+      messages.appendChild(welcome);
+      return;
+    }
+
+    list.forEach(item => {
+      const message = document.createElement("div");
+      message.className = "message";
+
+      const avatar = document.createElement("div");
+      avatar.className = "avatar";
+      if(item.avatar){
+        const img = document.createElement("img");
+        img.src = item.avatar;
+        avatar.appendChild(img);
+      } else {
+        avatar.textContent = item.name.slice(0,1).toUpperCase();
+      }
+
+      const content = document.createElement("div");
+      content.className = "message-content";
+
+      const top = document.createElement("div");
+      top.className = "message-top";
+
+      const username = document.createElement("span");
+      username.className = "username";
+      username.textContent = item.name;
+
+      const time = document.createElement("span");
+      time.className = "time";
+      time.textContent = item.time;
+
+      const text = document.createElement("div");
+      text.className = "message-text";
+      text.textContent = item.text;
+
+      top.append(username,time);
+      content.append(top,text);
+      message.append(avatar,content);
+      messages.appendChild(message);
+    });
+
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function renderAll(){
+    renderServers();
+    renderChannels();
+    renderMessages();
+  }
+
+  // Firebase üzerinden gerçek zamanlı mesajları dinleme
+  let currentListenRef = null;
+
+  function listenMessages(){
+    const key = getKey();
+    if(!messageHistory[key]) messageHistory[key] = [];
+    
+    // Her kanal değiştiğinde eski dinleyiciyi temizleyip yenisine bağlanıyoruz
+    currentListenRef = ref(db, "messages/" + key);
+    
+    // Mesajlar veritabanına eklendikçe anlık olarak ekrana yansıtılır
+    onChildAdded(currentListenRef, (snapshot) => {
+      const msgData = snapshot.val();
+      // Aynı mesajın mükerrer eklenmesini önlemek için basit kontrol
+      if(!messageHistory[key].some(m => m.time === msgData.time && m.text === msgData.text && m.name === msgData.name)){
+        messageHistory[key].push(msgData);
+        renderMessages();
+      }
+    });
+  }
+
+  document.getElementById("chatForm").addEventListener("submit",event => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if(!text) return;
+
+    const key = getKey();
+    const newMessage = {
+      name: currentUser.name || "Misafir",
+      avatar: currentUser.avatar,
+      text: text,
+      time: new Date().toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})
+    };
+
+    // Mesajı Firebase veritabanına gönder (Bu sayede odadaki herkes görebilir)
+    push(ref(db, "messages/" + key), newMessage);
+
+    input.value = "";
+    input.focus();
+  });
+
+  function addServer(){
+    const name = prompt("Yeni sunucunun adı:");
+    if(!name || !name.trim()) return;
+
+    const cleanName = name.trim().slice(0,40);
+    const id = nextServerId++;
+
+    serverData.push({
+      id:id,
+      name:cleanName,
+      icon:cleanName.slice(0,1).toUpperCase(),
+      channels:["genel","sohbet"]
+    });
+
+    activeServerId = id;
+    activeChannel = "genel";
+    renderAll();
+    listenMessages();
+  }
+
+  document.getElementById("addChannel").addEventListener("click",() => {
+    const name = prompt("Yeni kanalın adı:");
+    if(!name || !name.trim()) return;
+
+    const cleanName = name.trim().toLowerCase()
+      .replace(/\s+/g,"-").slice(0,40);
+
+    if(!cleanName) return;
+
+    const server = getServer();
+    if(server.channels.includes(cleanName)){
+      alert("Bu kanal zaten var!");
+      return;
+    }
+
+    server.channels.push(cleanName);
+    activeChannel = cleanName;
+    renderAll();
+    listenMessages();
+  });
+
+  document.getElementById("voiceChannel").addEventListener("click",() => {
+    alert("Sesli sohbet için daha sonra sunucu ve WebRTC bağlantısı kuracağız.");
+  });
+
+  document.getElementById("mobileMenu").addEventListener("click",() => {
+    const channels = document.querySelector(".channels");
+    channels.style.display = channels.style.display === "none" ? "" : "none";
+  });
+
+  // Başlangıçta verileri çiz ve mesajları dinlemeye başla
+  renderAll();
+  listenMessages();
+</script>
+</body>
+</html>
