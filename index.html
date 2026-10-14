@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medusa Canlı Odalar</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #0b0812; color: #ffffff; display: flex; justify-content: center; align-items: center; height: 100vh; width: 100vw; }
+        .container { background: #120d1d; padding: 20px; border-radius: 16px; width: 95%; max-width: 400px; height: 500px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6); border: 1px solid #261b3d; display: flex; flex-direction: column; }
+        h2 { text-align: center; margin-bottom: 20px; color: #8b5cf6; font-size: 22px; }
+        
+        /* Ana Menü Odalar */
+        .lobby { display: flex; flex-direction: column; gap: 15px; justify-content: center; flex: 1; }
+        .room-card { background: #1a132b; padding: 20px; border-radius: 12px; border: 1px solid #3b2a5c; cursor: pointer; text-align: center; transition: 0.2s; }
+        .room-card:hover { border-color: #8b5cf6; background: #221838; }
+        .room-title { font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 5px; }
+        .room-info { font-size: 13px; color: #94a3b8; }
+
+        /* Oda İçleri */
+        .room-screen { display: none; flex-direction: column; height: 100%; }
+        .room-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid #261b3d; }
+        .back-btn { background: #3b2a5c; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+
+        /* Yazılı Oda Alanı */
+        .chat-messages { flex: 1; background: #1a132b; border-radius: 10px; padding: 10px; overflow-y: auto; border: 1px solid #3b2a5c; margin-bottom: 10px; font-size: 14px; color: #cbd5e1; }
+        .chat-input-area { display: flex; gap: 8px; }
+        .chat-input-area input { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #3b2a5c; background: #1a132b; color: #fff; outline: none; }
+        .chat-input-area button { padding: 10px 16px; background: #8b5cf6; border: none; border-radius: 8px; color: #fff; font-weight: bold; cursor: pointer; }
+
+        /* Sesli Oda Alanı */
+        .voice-center { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 20px; text-align: center; }
+        .mic-btn { width: 90px; height: 90px; border-radius: 50%; background: #10b981; border: none; color: white; font-size: 32px; cursor: pointer; box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); transition: 0.2s; }
+        .mic-btn.active { background: #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); }
+        .status-text { font-size: 14px; color: #cbd5e1; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- ANA MENÜ (2 ODA) -->
+        <div id="lobbyScreen" class="lobby">
+            <h2>Medusa Canlı Odalar</h2>
+            
+            <div class="room-card" onclick="odaAc('yazili')">
+                <div class="room-title">💬 Yazılı Sohbet Odası</div>
+                <div class="room-info">Canlı mesajlaşma ve metin alanı</div>
+            </div>
+
+            <div class="room-card" onclick="odaAc('sesli')">
+                <div class="room-title">🎙️ Sesli Sohbet Odası</div>
+                <div class="room-info">Mikrofon ile canlı sesli iletişim</div>
+            </div>
+        </div>
+
+        <!-- 1. YAZILI SOHBET EKRANI -->
+        <div id="yaziliScreen" class="room-screen">
+            <div class="room-header">
+                <button class="back-btn" onclick="lobbyeDon()">❮ Odalar</button>
+                <h3 style="color: #8b5cf6; font-size: 16px;">Yazılı Sohbet</h3>
+                <span></span>
+            </div>
+            <div class="chat-messages" id="messageList">
+                <div style="margin-bottom: 8px; color: #8b5cf6;"><b>Sistem:</b> Yazılı odaya bağlandın.</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="mesajInput" placeholder="Mesaj yaz..." onkeypress="enterKontrol(event)">
+                <button onclick="mesajGonder()">Gönder</button>
+            </div>
+        </div>
+
+        <!-- 2. SESLİ SOHBET EKRANI -->
+        <div id="sesliScreen" class="room-screen">
+            <div class="room-header">
+                <button class="back-btn" onclick="lobbyeDon()">❮ Odalar</button>
+                <h3 style="color: #8b5cf6; font-size: 16px;">Sesli Sohbet</h3>
+                <span></span>
+            </div>
+            <div class="voice-center">
+                <div id="voiceStatus" class="status-text">Mikrofon kapalı. Konuşmak için butona bas.</div>
+                <button id="micButton" class="mic-btn" onclick="mikrofonuToggle()">🎤</button>
+                <div style="font-size: 12px; color: #94a3b8;">Canlı ses akışı aktif</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sesAktif = false;
+        let mikrofonStream = null;
+
+        function odaAc(tur) {
+            document.getElementById('lobbyScreen').style.display = 'none';
+            if (tur === 'yazili') {
+                document.getElementById('yaziliScreen').style.display = 'flex';
+            } else if (tur === 'sesli') {
+                document.getElementById('sesliScreen').style.display = 'flex';
+            }
+        }
+
+        function lobbyeDon() {
+            if(sesAktif) {
+                mikrofonuToggle(); // Odadan çıkınca mikrofonu kapat
+            }
+            document.getElementById('yaziliScreen').style.display = 'none';
+            document.getElementById('sesliScreen').style.display = 'none';
+            document.getElementById('lobbyScreen').style.display = 'flex';
+        }
+
+        function mesajGonder() {
+            const input = document.getElementById('mesajInput');
+            const mesajListesi = document.getElementById('messageList');
+            if(input.value.trim() !== "") {
+                mesajListesi.innerHTML += `<div style="margin-bottom: 8px;"><b>Sen:</b> ${input.value}</div>`;
+                input.value = "";
+                mesajListessIyi = mesajListesi.scrollHeight;
+                mesajListesi.scrollTop = mesajListesi.scrollHeight;
+            }
+        }
+
+        function enterKontrol(event) {
+            if (event.key === 'Enter') {
+                mesajGonder();
+            }
+        }
+
+        async function mikrofonuToggle() {
+            const btn = document.getElementById('micButton');
+            const status = document.getElementById('voiceStatus');
+
+            if (!sesAktif) {
+                try {
+                    mikrofonStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    sesAktif = true;
+                    btn.classList.add('active');
+                    btn.innerText = "🛑";
+                    status.innerText = "Mikrofon açık! Ses yayındasın.";
+                    status.style.color = "#10b981";
+                } catch (err) {
+                    alert("Mikrofon izni reddedildi veya tarayıcı izin vermiyor.");
+                }
+            } else {
+                if(mikrofonStream) {
+                    mikrofonStream.getTracks().forEach(track => track.stop());
+                }
+                sesAktif = false;
+                btn.classList.remove('active');
+                btn.innerText = "🎤";
+                status.innerText = "Mikrofon kapalı. Konuşmak için butona bas.";
+                status.style.color = "#cbd5e1";
+            }
+        }
+    </script>
+
+</body>
+</html>
